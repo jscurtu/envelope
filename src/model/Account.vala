@@ -16,9 +16,11 @@
 * with envelope. If not, see http://www.gnu.org/licenses/.
 */
 
+using Gee;
+
 namespace Envelope {
 
-    public class Account : Object, Gee.Comparable<Account> {
+    public class Account : Object, Comparable<Account> {
 
         public enum Type {
             CHECKING,
@@ -38,7 +40,7 @@ namespace Envelope {
             }
         }
 
-        public Gee.ArrayList<Transaction> transactions { get; set; }
+        public Gee.List<Transaction> transactions { get; set; }
         public string number { get; set; }
         public string description { get; set; }
         public Type account_type { get; set; default = Type.CHECKING; }
@@ -58,7 +60,7 @@ namespace Envelope {
             this.number = number;
         }
 
-        public Account.from_transaction_list (ref Gee.ArrayList<Transaction> transactions) {
+        public Account.from_transaction_list (ref ArrayList<Transaction> transactions) {
             this();
             this.transactions = transactions;
         }

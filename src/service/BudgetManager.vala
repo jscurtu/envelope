@@ -26,16 +26,16 @@ namespace Envelope.Service {
      */
     public struct BudgetState {
 
-        DateTime from;
-        DateTime to;
+        public DateTime from;
+        public DateTime to;
 
-        double inflow;
-        double outflow;
+        public double inflow;
+        public double outflow;
 
         public double remaining { get { return inflow - outflow; }}
 
-        ArrayList<Transaction> transactions;
-        ArrayList<MonthlyCategory> categories;
+        public Collection<Transaction> transactions;
+        public Collection<MonthlyCategory> categories;
 
         public double budgeted_outflow { get {
 
@@ -48,10 +48,14 @@ namespace Envelope.Service {
             return amount;
         }}
 
-        ArrayList<Transaction> uncategorized;
+        public Collection<Transaction> uncategorized;
 
-        double uncategorized_inflow;
-        double uncategorized_outflow;
+        public double uncategorized_inflow;
+        public double uncategorized_outflow;
+
+        public double budget_available { get {
+            return inflow - budgeted_outflow;
+        }}
     }
 
     private static BudgetManager budget_manager_instance = null;
@@ -82,18 +86,19 @@ namespace Envelope.Service {
         public signal void category_added (Category category);
         public signal void category_deleted (Category category);
         public signal void category_renamed (Category category, string old_name);
+        public signal void category_budget_changed (MonthlyCategory category);
 
         private DatabaseManager dbm = DatabaseManager.get_default ();
 
         // cached category list
-        private ArrayList<MonthlyCategory> categories;
+        private Collection<MonthlyCategory> categories;
 
         /**
          * Get all categories
          *
          * @return {Gee.ArrayList<Category>} list of categories
          */
-        public ArrayList<MonthlyCategory> get_categories () throws ServiceError {
+        public Collection<MonthlyCategory> get_categories () throws ServiceError {
 
             if (categories != null && !categories.is_empty) {
                 return categories;
@@ -101,10 +106,6 @@ namespace Envelope.Service {
 
             try {
                 categories = dbm.load_categories ();
-
-                if (!categories.is_empty) {
-                    categories.sort ();
-                }
 
                 debug ("loaded %d categorie(s)".printf (categories.size));
 
@@ -124,9 +125,9 @@ namespace Envelope.Service {
         public Category create_category (string name, double budgeted_amount = 0d) throws ServiceError {
 
             try {
-                Category category = new Category ();
+                MonthlyCategory category = new MonthlyCategory ();
                 category.name = name;
-                //category.amount_budgeted = budgeted_amount;
+                category.amount_budgeted = budgeted_amount;
 
                 dbm.create_category (category);
                 categories = null;
@@ -167,6 +168,20 @@ namespace Envelope.Service {
             }
         }
 
+        public void set_current_budgeted_amount (MonthlyCategory category) throws ServiceError {
+            // get current month and year
+            int month, year;
+            Envelope.Util.Date.get_year_month (out month, out year);
+
+            try {
+                dbm.set_category_budgeted_amount (category, year, month);
+                category_budget_changed (category);
+            }
+            catch (SQLHeavy.Error err) {
+                throw new ServiceError.DATABASE_ERROR (err.message);
+            }
+        }
+
         public void categorize_all_for_merchant (string merchant_name, Category category) throws ServiceError {
 
             return_if_fail (category.@id != null);
@@ -183,7 +198,7 @@ namespace Envelope.Service {
         /**
          * Get the transactions for the current month
          */
-        public ArrayList<Transaction> get_current_transactions () throws ServiceError {
+        public Collection<Transaction> get_current_transactions () throws ServiceError {
 
             try {
                 return dbm.get_current_transactions ();
@@ -198,7 +213,7 @@ namespace Envelope.Service {
          *
          * @return ArrayList<Transaction> list of transactions in the requested period
          */
-        public ArrayList<Transaction> get_transactions_for_month (int year, int month) throws ServiceError {
+        public Collection<Transaction> get_transactions_for_month (int year, int month) throws ServiceError {
             try {
                 return dbm.get_transactions_for_month_and_year (month, year);
             }
@@ -210,7 +225,7 @@ namespace Envelope.Service {
         /**
          * Get all transactions not associated with any category
          */
-        public ArrayList<Transaction> get_uncategorized_transactions () throws ServiceError {
+        public Collection<Transaction> get_uncategorized_transactions () throws ServiceError {
 
             try {
                 return dbm.load_uncategorized_transactions ();
@@ -227,14 +242,12 @@ namespace Envelope.Service {
          * @param {double} inflow
          * @param {double} outflow
          */
-        public ArrayList<Transaction>  compute_current_category_operations (Category category, out double inflow, out double outflow) throws ServiceError {
-
-            return_val_if_fail (category.@id != null, null);
+        public Gee.List<Transaction>  compute_current_category_operations (Category? category, out double inflow, out double outflow) throws ServiceError {
 
             try {
-                ArrayList<Transaction> transactions = dbm.get_current_transactions_for_category (category);
+                Gee.List<Transaction> transactions = dbm.get_current_transactions_for_category (category);
 
-                debug ("transaction for category %s: %d", category.name, transactions.size);
+                debug ("transaction for category %s: %d", category != null ? category.name : "(uncategorized)", transactions.size);
 
                 inflow = 0d;
                 outflow = 0d;
@@ -317,12 +330,10 @@ namespace Envelope.Service {
             double inflow = 0d;
             double outflow = 0d;
 
-            ArrayList<Transaction> transactions = get_transactions_for_month (year, month);
-            ArrayList<Transaction> uncategorized = new ArrayList<Transaction> ();
+            Collection<Transaction> transactions = get_transactions_for_month (year, month);
+            Collection<Transaction> uncategorized = new ArrayList<Transaction> ();
 
             foreach (Transaction t in transactions) {
-
-                debug ("analysizing transaciton");
 
                 switch (t.direction) {
                     case Transaction.Direction.INCOMING:
@@ -349,6 +360,7 @@ namespace Envelope.Service {
             budget_state.outflow = outflow;
             budget_state.uncategorized = uncategorized;
             budget_state.transactions = transactions;
+            budget_state.categories = get_categories ();
         }
 
         /**

@@ -1,7 +1,8 @@
 [Desktop Entry]
-Name=Budget
+Type=Application
+Name=Envelope
 Comment=Manage your budget
-Keywords=budget;money;
+Keywords=budget;money;account;transaction;bank;
 GenericName=Personal budget manager
 Exec=envelope
 Icon=accessories-calculator
@@ -15,4 +16,4 @@ Actions=AboutDialog;
 
 [Desktop Action AboutDialog]
 Exec=envelope --about
-Name=About Budget
+Name=About Envelope

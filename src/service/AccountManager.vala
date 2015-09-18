@@ -53,17 +53,23 @@ namespace Envelope.Service {
         public signal void transaction_updated      (Transaction transaction);
         public signal void transaction_deleted      (Transaction transaction);
 
-        private ArrayList<Account> accounts;
-
-        public ArrayList<Account> get_accounts () throws ServiceError {
-
-            if (accounts != null && !accounts.is_empty) {
-                return accounts;
-            }
+        public Collection<Account> get_accounts () throws ServiceError {
 
             try {
-                accounts = dbm.load_all_accounts ();
-                return accounts;
+                return dbm.load_all_accounts ();
+            }
+            catch (SQLHeavy.Error err) {
+                throw new ServiceError.DATABASE_ERROR (err.message);
+            }
+        }
+
+        public bool get_account_by_id (int account_id, out Account? account) throws ServiceError {
+
+
+            // load from database
+            try {
+                account = dbm.load_account (account_id);
+                return account != null;
             }
             catch (SQLHeavy.Error err) {
                 throw new ServiceError.DATABASE_ERROR (err.message);
@@ -123,7 +129,7 @@ namespace Envelope.Service {
          *
          * @return bool true if transaction suceedded, false otherwise
          */
-        public void rename_account (ref Account account, string new_number) throws AccountError, ServiceError {
+        public void rename_account (Account account, string new_number) throws AccountError, ServiceError {
             try {
                 dbm.rename_account (account, new_number);
                 account.number = new_number;
@@ -151,7 +157,7 @@ namespace Envelope.Service {
             }
         }
 
-        public Gee.ArrayList<Transaction> load_account_transactions (Account account) throws ServiceError {
+        public Gee.List<Transaction> load_account_transactions (Account account) throws ServiceError {
             try {
                 return dbm.load_account_transactions (account);
             }
